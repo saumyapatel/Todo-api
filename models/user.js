@@ -23,7 +23,7 @@ module.exports = function(sequelize, DataTypes) {
 			type: DataTypes.VIRTUAL,
 			allowNull: false,
 			validate: {
-				len: [7, 100],
+				len: [7, 100]
 			},
 			set: function (value) {
 				var salt = bcrypt.genSaltSync(10);
@@ -46,7 +46,7 @@ module.exports = function(sequelize, DataTypes) {
 		classMethods: {
 			authenticate: function (body) {
 				return new Promise (function (resolve, reject) {
-					if (typeof body.email !== 'string' && typeof body.password !== 'string') {
+					if (typeof body.email !== 'string' || typeof body.password !== 'string') {
 						return reject();
 					}
 					user.findOne({
@@ -60,8 +60,30 @@ module.exports = function(sequelize, DataTypes) {
 
 						resolve(user);
 					}, function (e) {
-						return reject();
+						reject();
 					});
+				});
+			},
+			findByToken: function (token) {
+				return new Promise(function (resolve, reject) {
+					try {
+						var decodedJWT = jwt.verify(token, 'qwerty098');
+						var bytes = cryptojs.AES.decrypt(decodedJWT.token, 'abc123!@#!');
+						var tokenData = JSON.parse(bytes.toString(cryptojs.enc.Utf8));
+
+						user.findById(tokenData.id).then(function (user) {
+							if (user) {
+								resolve(user);
+							} else {
+								reject();
+							}
+						}, function (e) {
+							reject();
+						});
+
+					} catch (e) {
+						reject();
+					}
 				});
 			}
 		},
@@ -76,8 +98,11 @@ module.exports = function(sequelize, DataTypes) {
 				}
 
 				try {
-					var stringData = JSON.stringify({id: this.get('id'), type: type});
-					var encryptedData = cryptojs.AES.encrypt(stringData, 'abc123!#@$').toString();;
+					var stringData = JSON.stringify({
+						id: this.get('id'),
+						type: type
+					});
+					var encryptedData = cryptojs.AES.encrypt(stringData, 'abc123!@#!').toString();
 					var token = jwt.sign({
 						token: encryptedData
 					}, 'qwerty098');
@@ -88,8 +113,8 @@ module.exports = function(sequelize, DataTypes) {
 					return undefined;
 				}
 			}
-		},
+		}
 	});
-	
+
 	return user;
-}
+};
